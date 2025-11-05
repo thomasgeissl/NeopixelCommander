@@ -43,32 +43,29 @@ public:
     initWebServer();
     initJs();
 
-    // IPAddress ip = (WiFi.getMode() & WIFI_AP) ? WiFi.softAPIP() : WiFi.localIP();
-    // if (DEBUG_LOGGING)
-    // {
-    //   Serial.printf("WebSocket endpoint: ws://%s/ws\n", ip.toString().c_str());
-    //   Serial.printf("HTTP ping endpoint: http://%s/ping\n", ip.toString().c_str());
-    // }
-
-    // if (setupAnimation)
-    // {
-    //   setupAnimation();
-    // }
+    IPAddress ip = (WiFi.getMode() & WIFI_AP) ? WiFi.softAPIP() : WiFi.localIP();
+    if (DEBUG_LOGGING)
+    {
+      Serial.printf("WebSocket endpoint: ws://%s/ws\n", ip.toString().c_str());
+      Serial.printf("HTTP ping endpoint: http://%s/ping\n", ip.toString().c_str());
+    }
   }
 
   void loop()
   {
     _ws.cleanupClients();
-    // if (!_duktapeInitialized && _lastPing == 0 && millis() > 60000)
-    // {
-    //   Serial.println("no ping in 60s ...");
-    //   stopWebServer();
-    //   initDuktape();
-    //   _duktapeInitialized = true;
-    //   evalJS(_storedJsCode);
-    // }
+    if (_executeStoredCode && _lastPing == 0 && (millis() > _executeStoredCodeAfterBootInactivityDuration))
+    {
+      Serial.println("no ping in 60s ...");
+      _executeStoredCode = false;
+      if (_storedJsCode.length() > 0)
+      {
+        _js->execute(_storedJsCode.c_str());
+      }
+    }
 
     // Process multiple commands per loop to keep up with incoming rate
+
     int processed = 0;
     while (queueStart != queueEnd && processed < COMMANDS_PER_LOOP)
     {
@@ -492,10 +489,10 @@ public:
       // _js->execute("for(var i = 0; i < 10; i++) { delay(i); }");
       // auto result = _js->evaluate("i=10;");
       // Serial.println(result.c_str());
-      if (_storedJsCode.length() > 0)
-      {
-        _js->execute(_storedJsCode.c_str());
-      }
+      // if (_storedJsCode.length() > 0)
+      // {
+      //   _js->execute(_storedJsCode.c_str());
+      // }
     }
     catch (CScriptException *e)
     {
@@ -537,9 +534,10 @@ public:
     return _numPixels;
   }
 
-  void setSetupAnimation(std::function<void()> animation)
+  void setExecuteStoredCodeAfterBootInactivity(int value)
   {
-    setupAnimation = animation;
+    _executeStoredCode = true;
+    _executeStoredCodeAfterBootInactivityDuration = value;
   }
 
 private:
@@ -556,11 +554,12 @@ private:
   AsyncWebSocket _ws;
   Adafruit_NeoPixel _strip;
   CTinyJS *_js;
-  std::function<void()> setupAnimation;
 
   uint32_t _connectTimeoutMs;
 
   String _storedJsCode;
+  bool _executeStoredCode = false;
+  int _executeStoredCodeAfterBootInactivityDuration = 60000; // ms
   unsigned long _lastPing;
 
   Command commandQueue[QUEUE_SIZE];
