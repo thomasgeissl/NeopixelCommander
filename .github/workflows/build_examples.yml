@@ -62,6 +62,18 @@ jobs:
       
       - name: Install library dependencies
         run: |
+          # Create Arduino libraries directory
+          mkdir -p ~/Arduino/libraries
+          
+          # Link this library to Arduino's library directory
+          ln -s ${{ github.workspace }} ~/Arduino/libraries/$(basename ${{ github.workspace }})
+          
+          # Install any external dependencies your library needs
+          # arduino-cli lib install "SomeLibrary"
+          echo "Library linked successfully"
+      
+      - name: Install library dependencies
+        run: |
           # Install any dependencies your library needs
           # arduino-cli lib install "SomeLibrary"
           echo "Install dependencies here if needed"
