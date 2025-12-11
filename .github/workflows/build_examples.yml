@@ -70,6 +70,8 @@ jobs:
           
           # Install any external dependencies your library needs
           # arduino-cli lib install "SomeLibrary"
+          arduino-cli lib install "https://github.com/ESP32Async/AsyncTCP.git"
+          arduino-cli lib install "https://github.com/ESP32Async/ESPAsyncWebServer.git"
           echo "Library linked successfully"
       
       - name: Install library dependencies
