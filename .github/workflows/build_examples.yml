@@ -1,0 +1,73 @@
+name: Compile Arduino Examples
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  compile-examples:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        board:
+          - fqbn: "esp32:esp32:lolin_s2_mini"
+            platform: "esp32:esp32"
+            name: "ESP32-S2-Mini"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+      
+      - name: Install platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install ${{ matrix.board.platform }}
+      
+      - name: Install library dependencies
+        run: |
+          # Install any dependencies your library needs
+          # arduino-cli lib install "SomeLibrary"
+          echo "Install dependencies here if needed"
+      
+      - name: Find and compile examples
+        run: |
+          mkdir -p compiled_binaries
+          
+          # Find all .ino files in examples directory
+          find examples -name "*.ino" | while read sketch; do
+            example_dir=$(dirname "$sketch")
+            example_name=$(basename "$example_dir")
+            
+            echo "Compiling $example_name..."
+            
+            # Compile the sketch
+            arduino-cli compile \
+              --fqbn ${{ matrix.board.fqbn }} \
+              --output-dir "compiled_binaries/${example_name}_${{ matrix.board.name }}" \
+              "$example_dir"
+            
+            # Find and rename the .bin file
+            find "compiled_binaries/${example_name}_${{ matrix.board.name }}" -name "*.bin" -exec cp {} "compiled_binaries/${example_name}_${{ matrix.board.name }}.bin" \;
+          done
+      
+      - name: Upload compiled binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-examples-${{ matrix.board.name }}
+          path: compiled_binaries/*.bin
+          retention-days: 30
+      
+      - name: Upload to release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: compiled_binaries/*.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
