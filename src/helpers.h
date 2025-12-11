@@ -1,4 +1,6 @@
 #pragma once
+#include <WiFi.h>
+
 
 // Add this to your NeopixelCommander class
 uint32_t ColorHSV(uint16_t hue, uint8_t sat = 255, uint8_t val = 255) {
@@ -34,7 +36,8 @@ enum CommandType
   SET_COLOR,
   CLEAR,
   SHOW,
-  SET_BRIGHTNESS
+  SET_BRIGHTNESS,
+  SET_CREDENTIALS
 };
 
 struct Command
@@ -47,4 +50,18 @@ struct Command
   uint8_t brightness;
   uint32_t clientId;
   uint32_t commandId; // unique ID for this command
+  String ssid;
+  String password;
 };
+
+
+uint32_t macToNumber() {
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+
+  uint32_t v = 0;
+  for (int i = 0; i < 6; ++i) {
+    v = (v << 5) - v + mac[i];
+  }
+  return v;
+}

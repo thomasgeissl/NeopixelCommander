@@ -18,8 +18,8 @@
 class NeopixelCommander
 {
 public:
-  NeopixelCommander(const char *ssid, const char *password, uint8_t pin, uint16_t numPixels, uint8_t brightness)
-      : _ssid(ssid), _password(password), _pin(pin), _numPixels(numPixels), _brightness(brightness),
+  NeopixelCommander(const char *fallbackSsid, const char *fallbackPassword, uint8_t pin, uint16_t numPixels, uint8_t brightness)
+      : _fallbackSsid(fallbackSsid), _fallbackPassword(fallbackPassword), _pin(pin), _numPixels(numPixels), _brightness(brightness),
         _server(80), _ws("/ws"), _strip(numPixels, pin, NEO_GRB + NEO_KHZ800),
         _js(new CTinyJS()),
         _connectTimeoutMs(15000), _lastPing(0)
@@ -43,6 +43,7 @@ public:
     initWebServer();
     initJs();
 
+
     IPAddress ip = (WiFi.getMode() & WIFI_AP) ? WiFi.softAPIP() : WiFi.localIP();
     if (DEBUG_LOGGING)
     {
@@ -61,6 +62,16 @@ public:
       if (_storedJsCode.length() > 0)
       {
         _js->execute(_storedJsCode.c_str());
+      }
+    }
+
+    if( _useFallbackCredentials && _lastPing == 0 && (millis() > _useFallbackCredentialsAfterBootInactivityDuration))
+    {
+      Serial.println("no ping in 30s ... using fallback credentials");
+      _useFallbackCredentials = false;
+      if(loadNetworkCredentialsFromPreferences()){
+        Serial.println("loaded saved credentials ... reconnecting wifi");
+        initWifi();
       }
     }
 
@@ -110,6 +121,16 @@ public:
 
   bool initWifi()
   {
+    Serial.println("Initializing WiFi...");
+    Serial.println("loading saved network credentials...");
+    if(loadNetworkCredentialsFromPreferences()){
+      Serial.println("loaded saved credentials");
+    }else{
+      Serial.println("no saved credentials, using fallback");
+      _ssid = _fallbackSsid;
+      _password = _fallbackPassword;
+    }
+
     Serial.printf("Trying STA connect to '%s'\n", _ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(_ssid, _password);
@@ -410,7 +431,6 @@ public:
     NeopixelCommander *self = static_cast<NeopixelCommander *>(userdata);
     if (!self)
       return;
-    Serial.println("js_clear called");
 
     self->_strip.clear();
     // self->_strip.show();   // optional: update LEDs immediately
@@ -420,7 +440,6 @@ public:
     NeopixelCommander *self = static_cast<NeopixelCommander *>(userdata);
     if (!self)
       return;
-    Serial.println("js_show called");
 
     self->_strip.show();
     // self->_strip.show();   // optional: update LEDs immediately
@@ -430,7 +449,6 @@ public:
     CScriptVar *value = var->getParameter("value");
     if (!value)
       return;
-    Serial.println("js_delay called");
     delay(value->getInt());
   }
   static void js_setPixelColor(CScriptVar *var, void *userdata)
@@ -446,7 +464,6 @@ public:
     CScriptVar *b = var->getParameter("b");
     if (!index || !r || !g || !b)
       return;
-    Serial.printf("js_setPixelColor called: index=%d, r=%d, g=%d, b=%d\n", index->getInt(), r->getInt(), g->getInt(), b->getInt());
     self->_strip.setPixelColor(index->getInt(), self->_strip.Color(r->getInt(), g->getInt(), b->getInt()));
   }
   static void js_setAllPixelColor(CScriptVar *var, void *userdata)
@@ -539,6 +556,11 @@ public:
     _executeStoredCode = true;
     _executeStoredCodeAfterBootInactivityDuration = value;
   }
+  void setUseFallbackCredentialsAfterBootInactivity(int value)
+  {
+    _useFallbackCredentials = true;
+    _useFallbackCredentialsAfterBootInactivityDuration = value;
+  }
 
 private:
   Preferences _preferences;
@@ -546,6 +568,8 @@ private:
 
   const char *_ssid;
   const char *_password;
+  const char *_fallbackSsid;
+  const char *_fallbackPassword;
   uint8_t _pin;
   uint16_t _numPixels;
   uint8_t _brightness;
@@ -560,6 +584,8 @@ private:
   String _storedJsCode;
   bool _executeStoredCode = false;
   int _executeStoredCodeAfterBootInactivityDuration = 60000; // ms
+  bool _useFallbackCredentials = false;
+  int _useFallbackCredentialsAfterBootInactivityDuration = 30000; // ms
   unsigned long _lastPing;
 
   Command commandQueue[QUEUE_SIZE];
@@ -599,6 +625,35 @@ private:
     _preferences.begin("neopixel", false);
     _preferences.remove("js_code");
     _preferences.end();
+  }
+
+  bool saveNetworkCredentialsToPreferences(const char *ssid, const char *password)
+  {
+    _preferences.begin("neopixel", false);
+    _preferences.putString("wifi_ssid", ssid);
+    _preferences.putString("wifi_password", password);
+    _preferences.putBool("credentials_saved", true);
+    _preferences.end();
+    return true;
+  }
+  bool loadNetworkCredentialsFromPreferences()
+  {
+    _preferences.begin("neopixel", true);
+    auto saved = _preferences.getBool("credentials_saved", false);
+    auto ssid = _preferences.getString("wifi_ssid", "");
+    auto password = _preferences.getString("wifi_password", "");
+    _preferences.end();
+    if( !saved )
+    {
+      return false;
+    }
+    if( ssid.length() > 0 && password.length() > 0)
+    {
+      _ssid = ssid.c_str();
+      _password = password.c_str();
+      return true;
+    }
+    return (ssid.length() > 0);
   }
 
   bool enqueueCommand(const Command &cmd)
@@ -664,6 +719,27 @@ private:
             if (DEBUG_LOGGING)
               Serial.printf("Received WebSocket ping (JSON) from client #%u\n", client->id());
             client->text("{\"status\":\"ok\",\"message\":\"pong\"}");
+            return;
+          }
+          if (strcmp(cmd, "setCredentials") == 0)
+          {
+            if (DEBUG_LOGGING)
+              Serial.printf("Received setCredentials from client #%u\n", client->id());
+
+            const char *ssid = doc["ssid"] | "";
+            const char *password = doc["password"] | "";
+            if (strlen(ssid) == 0 || strlen(password) == 0)
+            {
+              client->text("{\"status\":\"error\",\"error\":\"missing_credentials\"}");
+              return;
+            }
+            _ssid = ssid;
+            _password = password;
+            saveNetworkCredentialsToPreferences(ssid, password);
+            initWifi();
+
+
+            client->text("{\"status\":\"ok\"}");
             return;
           }
 
@@ -807,4 +883,4 @@ private:
       }
     }
   }
-};
+};    
