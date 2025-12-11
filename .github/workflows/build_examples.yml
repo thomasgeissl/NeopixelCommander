@@ -25,10 +25,40 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v1
       
+      - name: Cache Arduino platforms
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15/packages
+            ~/.arduino15/staging
+          key: arduino-platform-${{ matrix.board.platform }}-${{ hashFiles('**/package_esp32_index.json') }}
+          restore-keys: |
+            arduino-platform-${{ matrix.board.platform }}-
+      
       - name: Install platform
         run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
-          arduino-cli core install ${{ matrix.board.platform }}
+          
+          # Retry logic for platform installation
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            if arduino-cli core install ${{ matrix.board.platform }}; then
+              echo "Platform installed successfully!"
+              exit 0
+            else
+              echo "Installation failed. Waiting before retry..."
+              sleep 10
+              attempt=$((attempt + 1))
+            fi
+          done
+          
+          echo "Failed to install platform after $max_attempts attempts"
+          exit 1
       
       - name: Install library dependencies
         run: |
