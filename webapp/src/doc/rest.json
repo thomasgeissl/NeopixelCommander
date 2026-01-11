@@ -1,0 +1,309 @@
+{
+  "apiVersion": "1.0.0",
+  "title": "NeopixelCommander REST API",
+  "description": "REST API for controlling NeoPixel LED strips via ESP32",
+  "baseUrl": "http://<device-ip>",
+  "endpoints": [
+    {
+      "category": "Health & System",
+      "endpoints": [
+        {
+          "path": "/ping",
+          "method": "GET",
+          "description": "Check if the device is responsive",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok",
+                "message": "pong"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/ping",
+          "method": "POST",
+          "description": "Alternative ping endpoint using POST method",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok",
+                "message": "pong"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/pixelCount",
+          "method": "GET",
+          "description": "Get the total number of NeoPixels in the strip",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok",
+                "pixelCount": 60
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "LED Control",
+      "endpoints": [
+        {
+          "path": "/api/setColor",
+          "method": "POST",
+          "description": "Set all pixels to the same RGB color",
+          "parameters": [
+            {
+              "name": "r",
+              "type": "integer",
+              "required": true,
+              "description": "Red value (0-255)",
+              "in": "formData"
+            },
+            {
+              "name": "g",
+              "type": "integer",
+              "required": true,
+              "description": "Green value (0-255)",
+              "in": "formData"
+            },
+            {
+              "name": "b",
+              "type": "integer",
+              "required": true,
+              "description": "Blue value (0-255)",
+              "in": "formData"
+            }
+          ],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            },
+            {
+              "status": 400,
+              "description": "Missing parameters",
+              "example": {
+                "status": "error",
+                "error": "missing_params"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/clear",
+          "method": "POST",
+          "description": "Clear all pixels (set to black/off)",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/clear",
+          "method": "GET",
+          "description": "Clear all pixels (set to black/off)",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/setBrightness",
+          "method": "POST",
+          "description": "Set the global brightness level",
+          "parameters": [
+            {
+              "name": "brightness",
+              "type": "integer",
+              "required": true,
+              "description": "Brightness value (0-255)",
+              "in": "formData"
+            }
+          ],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            },
+            {
+              "status": 400,
+              "description": "Missing parameter",
+              "example": {
+                "status": "error",
+                "error": "missing_param"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/show",
+          "method": "POST",
+          "description": "Update the LED strip to display the current pixel colors",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/show",
+          "method": "GET",
+          "description": "Update the LED strip to display the current pixel colors",
+          "parameters": [],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "category": "JavaScript Code Management",
+      "endpoints": [
+        {
+          "path": "/api/evaljs",
+          "method": "GET",
+          "description": "Execute JavaScript code on the device",
+          "deprecated": true,
+          "note": "Currently disabled in implementation - execution is commented out",
+          "parameters": [
+            {
+              "name": "code",
+              "type": "string",
+              "required": true,
+              "description": "JavaScript code to execute",
+              "in": "query"
+            }
+          ],
+          "responses": [
+            {
+              "status": 400,
+              "description": "Missing code parameter",
+              "example": {
+                "status": "error",
+                "error": "missing_code"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/evaljs",
+          "method": "POST",
+          "description": "Execute JavaScript code sent in request body or as parameter",
+          "deprecated": true,
+          "note": "Currently disabled in implementation - execution is commented out",
+          "parameters": [
+            {
+              "name": "code",
+              "type": "string",
+              "required": true,
+              "description": "JavaScript code to execute",
+              "in": "formData or body"
+            }
+          ],
+          "responses": [
+            {
+              "status": 400,
+              "description": "No code received",
+              "example": {
+                "status": "error",
+                "error": "no_code_received"
+              }
+            }
+          ]
+        },
+        {
+          "path": "/api/savejs",
+          "method": "POST",
+          "description": "Save JavaScript code to device preferences for automatic execution on boot",
+          "parameters": [
+            {
+              "name": "code",
+              "type": "string",
+              "required": true,
+              "description": "JavaScript code to save",
+              "in": "formData or body"
+            }
+          ],
+          "responses": [
+            {
+              "status": 200,
+              "description": "Success",
+              "example": {
+                "status": "ok"
+              }
+            },
+            {
+              "status": 400,
+              "description": "No code received",
+              "example": {
+                "status": "error",
+                "error": "no_code_received"
+              }
+            },
+            {
+              "status": 500,
+              "description": "Save failed",
+              "example": {
+                "status": "error",
+                "error": "save_failed"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "commonResponses": {
+    "cors": {
+      "enabled": true,
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    },
+    "contentType": "application/json"
+  }
+}

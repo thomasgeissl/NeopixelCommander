@@ -11,7 +11,8 @@ import { NavLink, useNavigate } from "react-router-dom";
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const menu = [
-    { label: "Configurator", path: "/configurator" },
+    { label: "Getting Started", path: "/" },
+    { label: "Api Doc", path: "/api" },
     { label: "Debugger", path: "/debugger" },
     // { label: "Inspector", path: "/inspector" },
     // { label: "Firmware Uploader", path: "/uploader" },
@@ -29,7 +30,7 @@ const Header: React.FC = () => {
             onClick={() => navigate("/")}
             color="primary"
           >
-            NeopixelCommander
+            Neopixel Commander
           </Typography>
         </Box>
         <Box flex={1} />
