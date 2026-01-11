@@ -24,6 +24,7 @@ import {
 } from "@mui/icons-material";
 import { useSerialStore } from "../stores/serial";
 import Console from "./SerialConsole";
+import SerialMonitor from "./SerialMonitor";
 
 // type UploadStep = "select" | "bootloader" | "flash";
 

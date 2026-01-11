@@ -3,9 +3,9 @@ import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import { Settings as SettingsIcon } from "@mui/icons-material";
+// import { Settings as SettingsIcon } from "@mui/icons-material";
 
-import { Button, IconButton } from "@mui/material";
+import { Button } from "@mui/material";
 import { NavLink, useNavigate } from "react-router-dom";
 
 const Header: React.FC = () => {
@@ -15,7 +15,7 @@ const Header: React.FC = () => {
     { label: "Api Doc", path: "/api" },
     { label: "Debugger", path: "/debugger" },
     // { label: "Inspector", path: "/inspector" },
-    // { label: "Firmware Uploader", path: "/uploader" },
+    { label: "Firmware Uploader", path: "/uploader" },
   ];
 
   return (
@@ -53,12 +53,12 @@ const Header: React.FC = () => {
               {item.label}
             </Button>
           ))}
-          <IconButton
+          {/* <IconButton
             onClick={() => {}}
             color="inherit"
           >
             <SettingsIcon />
-          </IconButton>
+          </IconButton> */}
         </Box>
       </Toolbar>
     </AppBar>

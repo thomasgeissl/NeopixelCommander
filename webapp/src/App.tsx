@@ -5,6 +5,7 @@ import { Route, Routes } from "react-router-dom";
 import Debugger from "./components/Debugger";
 import NotFound from "./components/NotFound";
 import ApiDocumentation from "./components/ApiDoc";
+import FirmwareUploader from "./components/FirmwareUploader";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/api" element={<ApiDocumentation />} />
           <Route path="/debugger" element={<Debugger />} />
+          <Route path="/uploader" element={<FirmwareUploader />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Box>
