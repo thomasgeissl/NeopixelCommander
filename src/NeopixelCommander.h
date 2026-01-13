@@ -18,7 +18,7 @@
 class NeopixelCommander
 {
 public:
-  NeopixelCommander(const char *fallbackSsid, const char *fallbackPassword, uint8_t pin, uint16_t numPixels, uint8_t brightness)
+  NeopixelCommander(const String &fallbackSsid, const String &fallbackPassword, uint8_t pin, uint16_t numPixels, uint8_t brightness)
       : _fallbackSsid(fallbackSsid), _fallbackPassword(fallbackPassword), _pin(pin), _numPixels(numPixels), _brightness(brightness),
         _server(80), _ws("/ws"), _strip(numPixels, pin, NEO_GRB + NEO_KHZ800),
         _js(new CTinyJS()),
@@ -31,7 +31,7 @@ public:
   void begin()
   {
     Serial.begin(115200);
-    delay(1000);
+    delay(5000);
     if (DEBUG_LOGGING)
     {
       Serial.println("Starting NeopixelCommander");
@@ -43,7 +43,6 @@ public:
     initWebServer();
     initJs();
 
-
     IPAddress ip = (WiFi.getMode() & WIFI_AP) ? WiFi.softAPIP() : WiFi.localIP();
     if (DEBUG_LOGGING)
     {
@@ -54,10 +53,13 @@ public:
 
   void loop()
   {
+    checkSerialCommands();
     _ws.cleanupClients();
     if (_executeStoredCode && _lastPing == 0 && (millis() > _executeStoredCodeAfterBootInactivityDuration))
     {
-      Serial.println("no ping in 60s ...");
+      Serial.print("no ping in ");
+      Serial.print(_executeStoredCodeAfterBootInactivityDuration / 1000);
+      Serial.println("s ... executing stored JS code");
       _executeStoredCode = false;
       if (_storedJsCode.length() > 0)
       {
@@ -65,14 +67,13 @@ public:
       }
     }
 
-    if( _useFallbackCredentials && _lastPing == 0 && (millis() > _useFallbackCredentialsAfterBootInactivityDuration))
+    if (_useFallbackCredentials && _lastPing == 0 && (millis() > _useFallbackCredentialsAfterBootInactivityDuration))
     {
-      Serial.println("no ping in 30s ... using fallback credentials");
+      Serial.print("no ping in "); 
+      Serial.print(_useFallbackCredentialsAfterBootInactivityDuration / 1000);
+      Serial.println("s ... using fallback credentials");
+      initAPMode();
       _useFallbackCredentials = false;
-      if(loadNetworkCredentialsFromPreferences()){
-        Serial.println("loaded saved credentials ... reconnecting wifi");
-        initWifi();
-      }
     }
 
     // Process multiple commands per loop to keep up with incoming rate
@@ -119,21 +120,30 @@ public:
     }
   }
 
+  // --- initWifi() simplified for Strings ---
   bool initWifi()
   {
     Serial.println("Initializing WiFi...");
-    Serial.println("loading saved network credentials...");
-    if(loadNetworkCredentialsFromPreferences()){
-      Serial.println("loaded saved credentials");
-    }else{
-      Serial.println("no saved credentials, using fallback");
+    Serial.println("Loading saved network credentials...");
+
+    if (!loadNetworkCredentialsFromPreferences())
+    {
+      Serial.println("No saved credentials, using fallback");
       _ssid = _fallbackSsid;
       _password = _fallbackPassword;
     }
+    else
+    {
+      Serial.println("Loaded saved credentials");
+    }
 
-    Serial.printf("Trying STA connect to '%s'\n", _ssid);
+    Serial.printf("SSID: '%s'\n", _ssid.c_str());
+    Serial.printf("Password: '%s'\n", _password.c_str());
+
+    Serial.printf("Trying STA connect to '%s'\n", _ssid.c_str());
+
     WiFi.mode(WIFI_STA);
-    WiFi.begin(_ssid, _password);
+    WiFi.begin(_ssid.c_str(), _password.c_str());
 
     uint32_t start = millis();
     bool staConnected = false;
@@ -152,49 +162,90 @@ public:
 
     if (staConnected)
     {
+      _wifiState = WIFI_STATE_CONNECTED;
+
       if (DEBUG_LOGGING)
-      {
         Serial.printf("\nConnected as STA. IP: %s\n", WiFi.localIP().toString().c_str());
+    }
+    else
+    {
+      if (DEBUG_LOGGING)
+        Serial.printf("\nSTA connect failed after %u ms. Starting SoftAP with SSID '%s'\n",
+                      (unsigned)_connectTimeoutMs, _ssid.c_str());
+
+      if (_password.length() >= 8)
+      {
+        WiFi.mode(WIFI_AP_STA);
+        if (!WiFi.softAP(_ssid.c_str(), _password.c_str()))
+        {
+          if (DEBUG_LOGGING)
+            Serial.println("softAP() failed. Falling back to open AP.");
+          WiFi.softAP(_ssid.c_str());
+        }
+      }
+      else
+      {
+        if (DEBUG_LOGGING)
+          Serial.println("Password too short for WPA2. Starting open AP.");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(_ssid.c_str());
+      }
+
+      delay(500);
+      if (DEBUG_LOGGING)
+        Serial.printf("SoftAP active. AP IP: %s\n", WiFi.softAPIP().toString().c_str());
+    }
+
+    return true;
+  }
+
+  void initAPMode()
+  {
+    _wifiState = WIFI_STATE_AP_MODE;
+
+    // Use fallback SSID/password for the AP
+    String apSSID = _fallbackSsid;
+    String apPassword = _fallbackPassword;
+
+    Serial.printf("Starting Access Point with SSID: '%s'\n", apSSID.c_str());
+
+    if (apPassword.length() >= 8)
+    {
+      WiFi.mode(WIFI_AP);
+      if (!WiFi.softAP(apSSID.c_str(), apPassword.c_str()))
+      {
+        if (DEBUG_LOGGING)
+        {
+          Serial.println("softAP() with password failed. Starting open AP.");
+        }
+        WiFi.softAP(apSSID.c_str());
+      }
+      else
+      {
+        if (DEBUG_LOGGING)
+        {
+          Serial.printf("AP started with WPA2 password\n");
+        }
       }
     }
     else
     {
       if (DEBUG_LOGGING)
       {
-        Serial.printf("\nSTA connect failed after %u ms. Starting SoftAP with SSID '%s'\n",
-                      (unsigned)_connectTimeoutMs, _ssid);
+        Serial.println("Password too short for WPA2 (needs 8+ chars). Starting open AP.");
       }
-
-      if (_password != nullptr && strlen(_password) >= 8)
-      {
-        WiFi.mode(WIFI_AP_STA);
-        bool ok = WiFi.softAP(_ssid, _password);
-        if (!ok)
-        {
-          if (DEBUG_LOGGING)
-          {
-            Serial.println("softAP() returned false. Attempting open AP (no password).");
-          }
-          WiFi.softAP(_ssid);
-        }
-      }
-      else
-      {
-        if (DEBUG_LOGGING)
-        {
-          Serial.println("Password too short for WPA2; starting open AP.");
-        }
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP(_ssid);
-      }
-
-      delay(500);
-      if (DEBUG_LOGGING)
-      {
-        Serial.printf("SoftAP active. AP IP: %s\n", WiFi.softAPIP().toString().c_str());
-      }
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP(apSSID.c_str());
     }
-    return true;
+
+    delay(500);
+
+    if (DEBUG_LOGGING)
+    {
+      Serial.printf("✓ AP active: '%s'\n", apSSID.c_str());
+      Serial.printf("  IP Address: %s\n", WiFi.softAPIP().toString().c_str());
+      Serial.printf("  Connect to this network and visit: http://%s\n", WiFi.softAPIP().toString().c_str());
+    }
   }
 
   bool initNeopixels()
@@ -487,8 +538,6 @@ public:
 
   bool initJs()
   {
-    Serial.printf("Free heap: %u\n", ESP.getFreeHeap());
-
     registerFunctions(_js);
     _js->addNative("function clear()", &NeopixelCommander::js_clear, this);
     _js->addNative("function show()", &NeopixelCommander::js_show, this);
@@ -563,13 +612,23 @@ public:
   }
 
 private:
+  enum WifiState
+  {
+    WIFI_STATE_CONNECTED,
+    WIFI_STATE_AP_MODE
+  };
+
+  WifiState _wifiState = WIFI_STATE_AP_MODE;
+  static constexpr uint32_t SERIAL_CLIENT_ID = 0xFFFFFFFF;
+
   Preferences _preferences;
   static const uint16_t QUEUE_SIZE = 512;
 
-  const char *_ssid;
-  const char *_password;
-  const char *_fallbackSsid;
-  const char *_fallbackPassword;
+  String _ssid;
+  String _password;
+  String _fallbackSsid;
+  String _fallbackPassword;
+
   uint8_t _pin;
   uint16_t _numPixels;
   uint8_t _brightness;
@@ -611,7 +670,7 @@ private:
     if (_storedJsCode.length() > 0)
     {
       Serial.printf("Loaded stored JS code from preferences, length: %u\n", _storedJsCode.length());
-      Serial.println(_storedJsCode.c_str());
+      // Serial.println(_storedJsCode.c_str());
     }
     else
     {
@@ -627,33 +686,43 @@ private:
     _preferences.end();
   }
 
-  bool saveNetworkCredentialsToPreferences(const char *ssid, const char *password)
+  bool saveNetworkCredentialsToPreferences(const String &ssid, const String &password)
   {
-    _preferences.begin("neopixel", false);
-    _preferences.putString("wifi_ssid", ssid);
-    _preferences.putString("wifi_password", password);
-    _preferences.putBool("credentials_saved", true);
+    if (!_preferences.begin("neopixel", false))
+    {
+      Serial.println("Failed to open preferences!");
+      return false;
+    }
+
+    size_t ssidWritten = _preferences.putString("wifi_ssid", ssid);
+    size_t passWritten = _preferences.putString("wifi_password", password);
+    size_t flagWritten = _preferences.putUChar("initialized", 42);
+
     _preferences.end();
+
+    if (ssidWritten == 0 || passWritten == 0 || flagWritten == 0)
+    {
+      Serial.println("Failed to write credentials!");
+      return false;
+    }
+
+    Serial.println("✓ Network credentials saved!");
     return true;
   }
   bool loadNetworkCredentialsFromPreferences()
   {
     _preferences.begin("neopixel", true);
-    auto saved = _preferences.getBool("credentials_saved", false);
-    auto ssid = _preferences.getString("wifi_ssid", "");
-    auto password = _preferences.getString("wifi_password", "");
+    uint8_t initialized = _preferences.getUChar("initialized", 0);
+    String ssid = _preferences.getString("wifi_ssid", "");
+    String password = _preferences.getString("wifi_password", "");
     _preferences.end();
-    if( !saved )
-    {
+
+    if (initialized != 42 || ssid.length() == 0)
       return false;
-    }
-    if( ssid.length() > 0 && password.length() > 0)
-    {
-      _ssid = ssid.c_str();
-      _password = password.c_str();
-      return true;
-    }
-    return (ssid.length() > 0);
+
+    _ssid = ssid;
+    _password = password;
+    return true;
   }
 
   bool enqueueCommand(const Command &cmd)
@@ -673,6 +742,20 @@ private:
   bool evalJS(const String &code)
   {
     return true;
+  }
+  String getActiveIP() const
+  {
+    if (_wifiState == WIFI_STATE_AP_MODE)
+      return WiFi.softAPIP().toString();
+    else
+      return WiFi.localIP().toString();
+  }
+
+  String getMacAddress() const
+  {
+    // ESP32 supports per-interface MACs; this returns the active STA MAC,
+    // which is normally what clients expect.
+    return WiFi.macAddress();
   }
 
   inline void _onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
@@ -707,180 +790,204 @@ private:
           return;
         }
 
-        StaticJsonDocument<512> doc;
-        if (deserializeJson(doc, (char *)data) == DeserializationError::Ok)
-        {
-          const char *cmd = doc["cmd"] | "";
-          uint32_t id = doc["id"] | 0; // Get command ID from client
-
-          // Handle JSON ping command
-          if (strcmp(cmd, "ping") == 0)
-          {
-            if (DEBUG_LOGGING)
-              Serial.printf("Received WebSocket ping (JSON) from client #%u\n", client->id());
-            client->text("{\"status\":\"ok\",\"message\":\"pong\"}");
-            return;
-          }
-          if (strcmp(cmd, "setCredentials") == 0)
-          {
-            if (DEBUG_LOGGING)
-              Serial.printf("Received setCredentials from client #%u\n", client->id());
-
-            const char *ssid = doc["ssid"] | "";
-            const char *password = doc["password"] | "";
-            if (strlen(ssid) == 0 || strlen(password) == 0)
+        handleJsonCommand(
+            (char *)data,
+            client->id(),
+            [client](const char *msg)
             {
-              client->text("{\"status\":\"error\",\"error\":\"missing_credentials\"}");
-              return;
-            }
-            _ssid = ssid;
-            _password = password;
-            saveNetworkCredentialsToPreferences(ssid, password);
-            initWifi();
-
-
-            client->text("{\"status\":\"ok\"}");
-            return;
-          }
-
-          // Handle getPixelCount command
-          if (strcmp(cmd, "getPixelCount") == 0)
-          {
-            if (DEBUG_LOGGING)
-              Serial.printf("Received getPixelCount from client #%u\n", client->id());
-            char response[64];
-            snprintf(response, sizeof(response), "{\"status\":\"ok\",\"pixelCount\":%u}", _numPixels);
-            client->text(response);
-            return;
-          }
-
-          // Handle evalJS command - NEW!
-          if (strcmp(cmd, "evalJS") == 0)
-          {
-            const char *jsCode = doc["code"] | "";
-            if (strlen(jsCode) == 0)
-            {
-              client->text("{\"status\":\"error\",\"error\":\"missing_code\"}");
-              return;
-            }
-
-            if (DEBUG_LOGGING)
-              Serial.printf("Received evalJS from client #%u, code length: %u\n", client->id(), strlen(jsCode));
-
-            // bool success = evalJS(String(jsCode));
-            // if (success)
-            // {
-            //   client->text("{\"status\":\"ok\"}");
-            // }
-            // else
-            // {
-            //   client->text("{\"status\":\"error\",\"error\":\"eval_failed\"}");
-            // }
-            return;
-          }
-
-          if (strcmp(cmd, "saveJS") == 0)
-          {
-            const char *jsCode = doc["code"] | "";
-            if (strlen(jsCode) == 0)
-            {
-              client->text("{\"status\":\"error\",\"error\":\"missing_code\"}");
-              return;
-            }
-
-            if (DEBUG_LOGGING)
-            {
-              Serial.printf("Received saveJS from client #%u, code length: %u\n", client->id(), strlen(jsCode));
-            }
-
-            bool success = this->saveJsCodeToPreferences(jsCode);
-            if (success)
-            {
-              char ackMsg[64];
-              snprintf(ackMsg, sizeof(ackMsg), "{\"status\":\"ok\",\"ack\":%u}", id);
-              Serial.printf("ackMsg: %s\n", ackMsg);
-              client->text(ackMsg);
-            }
-            else
-            {
-              client->text("{\"status\":\"error\",\"error\":\"save_failed\"}");
-            }
-            return;
-          }
-
-          if (id == 0)
-          {
-            // Command ID is required for non-ping commands
-            client->text("{\"status\":\"error\",\"error\":\"missing_id\"}");
-            return;
-          }
-
-          Command command;
-          command.clientId = client->id();
-          command.commandId = id;
-          bool validCmd = true;
-
-          if (strcmp(cmd, "setColor") == 0)
-          {
-            command.type = SET_COLOR;
-            command.r = doc["r"] | 0;
-            command.g = doc["g"] | 0;
-            command.b = doc["b"] | 0;
-          }
-          else if (strcmp(cmd, "clear") == 0)
-          {
-            command.type = CLEAR;
-          }
-          else if (strcmp(cmd, "setPixelColor") == 0)
-          {
-            command.type = SET_PIXEL_COLOR;
-            command.index = doc["index"] | 0;
-            command.r = doc["r"] | 0;
-            command.g = doc["g"] | 0;
-            command.b = doc["b"] | 0;
-
-            // Validate pixel index bounds
-            if (command.index >= _numPixels)
-            {
-              char errMsg[96];
-              snprintf(errMsg, sizeof(errMsg), "{\"status\":\"error\",\"error\":\"index_out_of_bounds\",\"id\":%u,\"max\":%u}", id, _numPixels - 1);
-              client->text(errMsg);
-              validCmd = false;
-            }
-          }
-          else if (strcmp(cmd, "show") == 0)
-          {
-            command.type = SHOW;
-          }
-          else if (strcmp(cmd, "setBrightness") == 0)
-          {
-            command.type = SET_BRIGHTNESS;
-            command.brightness = doc["brightness"] | 255;
-          }
-          else
-          {
-            validCmd = false;
-            char errMsg[80];
-            snprintf(errMsg, sizeof(errMsg), "{\"status\":\"error\",\"error\":\"unknown_cmd\",\"id\":%u}", id);
-            client->text(errMsg);
-          }
-
-          if (validCmd)
-          {
-            if (!enqueueCommand(command))
-            {
-              char errMsg[80];
-              snprintf(errMsg, sizeof(errMsg), "{\"status\":\"error\",\"error\":\"queue_full\",\"id\":%u}", id);
-              client->text(errMsg);
-            }
-            // ACK with ID will be sent after processing in loop()
-          }
-        }
-        else
-        {
-          client->text("{\"status\":\"error\",\"error\":\"bad_json\"}");
-        }
+              client->text(msg);
+            });
       }
     }
   }
-};    
+  void handleJsonCommand(
+      const char *json,
+      uint32_t clientId,
+      std::function<void(const char *reply)> reply)
+  {
+    StaticJsonDocument<512> doc;
+    if (deserializeJson(doc, json) != DeserializationError::Ok)
+    {
+      reply("{\"status\":\"error\",\"error\":\"bad_json\"}");
+      return;
+    }
+
+    const char *cmd = doc["cmd"] | "";
+    uint32_t id = doc["id"] | 0;
+
+    // ping
+    if (strcmp(cmd, "ping") == 0)
+    {
+      _lastPing = millis();
+      reply("{\"status\":\"ok\",\"message\":\"pong\"}");
+      return;
+    }
+
+    // setCredentials
+    if (strcmp(cmd, "setCredentials") == 0)
+    {
+      String ssid = doc["ssid"] | "";
+      String password = doc["password"] | "";
+
+      if (ssid.length() == 0 || password.length() == 0)
+      {
+        reply("{\"status\":\"error\",\"error\":\"missing_credentials\"}");
+        return;
+      }
+
+      _ssid = ssid;
+      _password = password;
+
+      saveNetworkCredentialsToPreferences(_ssid, _password);
+
+      Serial.println("Updated WiFi credentials. Reconnecting...");
+      initWifi();
+      reply("{\"status\":\"ok\"}");
+      return;
+    }
+
+    // getPixelCount
+    if (strcmp(cmd, "getPixelCount") == 0)
+    {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "{\"status\":\"ok\",\"pixelCount\":%u}", _numPixels);
+      reply(buf);
+      return;
+    }
+
+    // saveJS
+    if (strcmp(cmd, "saveJS") == 0)
+    {
+      const char *code = doc["code"] | "";
+      if (!code[0])
+      {
+        reply("{\"status\":\"error\",\"error\":\"missing_code\"}");
+        return;
+      }
+      bool ok = saveJsCodeToPreferences(code);
+      if (ok)
+      {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "{\"status\":\"ok\",\"ack\":%u}", id);
+        reply(buf);
+      }
+      else
+      {
+        reply("{\"status\":\"error\",\"error\":\"save_failed\"}");
+      }
+      return;
+    }
+
+    // All remaining commands require id
+    if (id == 0)
+    {
+      reply("{\"status\":\"error\",\"error\":\"missing_id\"}");
+      return;
+    }
+
+    Command command;
+    command.clientId = clientId;
+    command.commandId = id;
+    bool valid = true;
+
+    if (strcmp(cmd, "setColor") == 0)
+    {
+      command.type = SET_COLOR;
+      command.r = doc["r"] | 0;
+      command.g = doc["g"] | 0;
+      command.b = doc["b"] | 0;
+    }
+    else if (strcmp(cmd, "clear") == 0)
+    {
+      command.type = CLEAR;
+    }
+    else if (strcmp(cmd, "show") == 0)
+    {
+      command.type = SHOW;
+    }
+    else if (strcmp(cmd, "setBrightness") == 0)
+    {
+      command.type = SET_BRIGHTNESS;
+      command.brightness = doc["brightness"] | 255;
+    }
+    else if (strcmp(cmd, "setPixelColor") == 0)
+    {
+      command.type = SET_PIXEL_COLOR;
+      command.index = doc["index"] | 0;
+      command.r = doc["r"] | 0;
+      command.g = doc["g"] | 0;
+      command.b = doc["b"] | 0;
+
+      if (command.index >= _numPixels)
+      {
+        char buf[96];
+        snprintf(buf, sizeof(buf),
+                 "{\"status\":\"error\",\"error\":\"index_out_of_bounds\",\"id\":%u}", id);
+        reply(buf);
+        return;
+      }
+    }
+    // getCredentials
+    else if (strcmp(cmd, "getCredentials") == 0)
+    {
+      StaticJsonDocument<256> resp;
+      resp["status"] = "ok";
+
+      if (_wifiState == WIFI_STATE_AP_MODE)
+      {
+        // In AP mode the device is advertising the fallback network
+        resp["ssid"] = _fallbackSsid;
+        resp["password"] = _fallbackPassword;
+        resp["wifiMode"] = "ap";
+        resp["ip"] = WiFi.softAPIP().toString();
+      }
+      else
+      {
+        // In STA mode we report the configured network
+        resp["ssid"] = _ssid;
+        resp["password"] = _password;
+        resp["wifiMode"] = "sta";
+        resp["ip"] = WiFi.localIP().toString();
+      }
+      resp["mac"] = getMacAddress();
+
+      char buf[256];
+      serializeJson(resp, buf, sizeof(buf));
+      reply(buf);
+      return;
+    }
+    else
+    {
+      char buf[80];
+      snprintf(buf, sizeof(buf), "{\"status\":\"error\",\"error\":\"unknown_cmd\",\"id\":%u}", id);
+      reply(buf);
+      return;
+    }
+
+    if (!enqueueCommand(command))
+    {
+      char buf[80];
+      snprintf(buf, sizeof(buf), "{\"status\":\"error\",\"error\":\"queue_full\",\"id\":%u}", id);
+      reply(buf);
+    }
+  }
+
+  void checkSerialCommands()
+  {
+    while (Serial.available())
+    {
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+      if (!line.length())
+        continue;
+
+      handleJsonCommand(
+          line.c_str(),
+          SERIAL_CLIENT_ID,
+          [](const char *msg)
+          {
+            Serial.println(msg);
+          });
+    }
+  }
+};
