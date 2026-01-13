@@ -27,8 +27,8 @@ void setup()
   neopixelCommander = new NeopixelCommander(ssidString.c_str(), passwordString.c_str(), 2, 64, 127);
 
   neopixelCommander->begin();
-  neopixelCommander->setUseFallbackCredentialsAfterBootInactivity(30000);
-  neopixelCommander->setExecuteStoredCodeAfterBootInactivity(60000);
+  neopixelCommander->setUseFallbackCredentialsAfterBootInactivity(60000);
+  neopixelCommander->setExecuteStoredCodeAfterBootInactivity(120000);
 }
 
 void loop()

@@ -21,14 +21,14 @@ void setup()
   String passwordString = "password-";
   passwordString += pw;
 
-  Serial.print("pw:");
+  Serial.print("pw: ");
   Serial.println(passwordString);
 
   neopixelCommander = new NeopixelCommander(ssidString.c_str(), passwordString.c_str(), 2, 25, 255);
 
   neopixelCommander->begin();
-  neopixelCommander->setUseFallbackCredentialsAfterBootInactivity(30000);
-  neopixelCommander->setExecuteStoredCodeAfterBootInactivity(60000);
+  neopixelCommander->setUseFallbackCredentialsAfterBootInactivity(60000);
+  neopixelCommander->setExecuteStoredCodeAfterBootInactivity(120000);
 }
 
 void loop()

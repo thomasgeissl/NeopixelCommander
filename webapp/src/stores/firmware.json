@@ -1,0 +1,14 @@
+[
+  {
+    "label": "NeoPixel Commander Server 8x8",
+    "path": "/NeopixelCommander/firmware/lolin_s2_mini_example-8x8_example-8x8.ino.bin",
+    "description": "Firmware to be controlled via rest and websocket API for 8x8 matrix",
+    "board": "LOLIN S2 Mini"
+  },
+  {
+    "label": "NeoPixel Commander Server 5x5",
+    "path": "/NeopixelCommander/firmware/lolin_s2_mini_example-5x5_example-5x5.ino.bin",
+    "description": "Firmware to be controlled via rest and websocket API for 5x5 matrix",
+    "board": "LOLIN S2 Mini"
+  }
+]

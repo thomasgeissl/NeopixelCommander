@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { ESPLoader, Transport } from "esptool-js";
 import CryptoJS from "crypto-js";
+import availableFirmware from "./firmware.json";
 // import axios from "axios";
 
 // https://github.com/adafruit/Adafruit_WebSerial_ESPTool/blob/main/js/script.js
@@ -203,15 +204,8 @@ export const useSerialStore = create<SerialState>()(
       log: [],
       flashProgress: null,
       chipInfo: "",
-      availableFirmware: [
-        {
-          label: "NeoPixel Commander Server",
-          path: "/NeopixelCommander/firmware/lolin_s2_mini_example.ino.bin",
-          description: "Firmware to be controlled via rest and websocket API",
-          board: "LOLIN S2 Mini",
-        },
-      ],
-
+      availableFirmware,
+      
       init: () => {
         // axios.get("https://api.github.com/repos/grantler-instruments/esp-now-midi/releases/latest")
         //   .then((response) => {
