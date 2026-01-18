@@ -15,6 +15,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Stack,
+  Link,
 } from "@mui/material";
 import {
   Upload as UploadIcon,
@@ -51,13 +52,14 @@ const FirmwareUploader: React.FC = () => {
   const [fwOpen, setFwOpen] = useState(true);
   const [bootOpen, setBootOpen] = useState(false);
   const [flashOpen, setFlashOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => init(), [init]);
   useEffect(
     () => logEndRef.current?.scrollIntoView({ behavior: "smooth" }),
-    [log]
+    [log],
   );
 
   // const resetUploader = (): void => {
@@ -123,6 +125,20 @@ const FirmwareUploader: React.FC = () => {
 
   return (
     <Box p={2}>
+      <Box mb={2}>
+        <Alert severity="info">
+          Please note, this firmware uploader is an experimental feature. If you
+          encounter any issues, please report them on our <Link href="https://github.com/thomasgeissl/NeopixelCommander" target="_blank" rel="noopener noreferrer">GitHub issues page</Link>.{" "}
+          <br />
+          You can also use the Arduino IDE to flash firmware manually if you
+          prefer. Use the library manager to install the NeopixelCommander
+          library and select the appropriate example sketch for your board.
+          <br />
+          <Button variant="outlined" onClick={() => setManualOpen(true)}>
+            Show instructions
+          </Button>
+        </Alert>
+      </Box>
       <Grid container spacing={2}>
         {/* Step 1: Firmware selection */}
         <Grid size={{ xs: 12 }}>
@@ -342,6 +358,48 @@ const FirmwareUploader: React.FC = () => {
                   Disconnect
                 </Button>
               )}
+            </AccordionDetails>
+          </Accordion>
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Accordion
+            expanded={manualOpen}
+            onChange={(_, expanded) => setManualOpen(expanded)}
+            sx={{ opacity: 0.85 }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="caption" color="text.secondary">
+                Alternative: manual upload using Arduino IDE
+              </Typography>
+            </AccordionSummary>
+
+            <AccordionDetails>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Firmware may also be uploaded manually using the Arduino IDE.
+                This path exists as a fallback and is not required for normal
+                operation.
+              </Typography>
+
+              <Typography variant="body2" component="ul" sx={{ pl: 2 }}>
+                <li>Install the Arduino IDE.</li>
+                <li>
+                  Install the appropriate board package via Boards Manager, e.g
+                  esp32 by espressif systems.
+                </li>
+                <li>
+                  Install the NeopixelCommander library via Library Manager.
+                </li>
+                <li>Choose one of the example sketches from the library</li>
+                <li>Select the correct board and upload the example sketch.</li>
+              </Typography>
+
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1 }}
+              >
+                Some boards require manual bootloader mode during upload. E.g. for a LOLIN S2 Mini hold BOOT and press RESET to enter bootloader mode.
+              </Typography>
             </AccordionDetails>
           </Accordion>
         </Grid>
