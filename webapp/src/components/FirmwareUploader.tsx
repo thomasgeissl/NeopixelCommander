@@ -128,7 +128,7 @@ const FirmwareUploader: React.FC = () => {
       <Box mb={2}>
         <Alert severity="info">
           Please note, this firmware uploader is an experimental feature. If you
-          encounter any issues, please report them on our <Link href="https://github.com/thomasgeissl/NeopixelCommander" target="_blank" rel="noopener noreferrer">GitHub issues page</Link>.{" "}
+          encounter any issues, please report them on our <Link href="https://github.com/threeeeight/NeopixelCommander" target="_blank" rel="noopener noreferrer">GitHub issues page</Link>.{" "}
           <br />
           You can also use the Arduino IDE to flash firmware manually if you
           prefer. Use the library manager to install the NeopixelCommander
